@@ -41,8 +41,6 @@ import Queue
 import advene.core.config as config
 import advene.core.version
 
-import advene.plugins.visuallearning as visuallearning
-
 if config.data.os == 'win32':
     import win32process
 
@@ -267,7 +265,6 @@ class AdveneGUI(object):
                     ( "", None, "" ),
                     ( _("_Export..."), self.on_export_activate, _("Export data to another format") ),
                     ( _("_Website export..."), self.on_website_export_activate, _("Export views to a website") ),
-                    ( _("_VisualLearning export..."), self.on_visuallearning_export_activate, _("Export annotations to a VisualLearning page") ),
                     ( "", None, "" ),
                     ( _("_Quit"), self.on_exit, "" ),
                     ), "" ),
@@ -4805,9 +4802,6 @@ class AdveneGUI(object):
 
         w.show_all()
         return True
-
-    def on_visuallearning_export_activate(self, button=None, data=None):
-        visuallearning.display_gui(self.controller)
 
     def on_export_activate (self, button=None, data=None):
         """Export a whole package.
