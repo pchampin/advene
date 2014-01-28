@@ -185,7 +185,7 @@ class Shape(object):
         s=cls(name=element.attrib.get('name', cls.SHAPENAME))
         s.filled=( element.attrib.get('fill', 'none') != 'none' )
         s.color=element.attrib.get('stroke', None)
-        s.opacity = element.attrib.get('opacity', 1.0)
+        s.opacity = float(element.attrib.get('opacity', 1.0))
         style=element.attrib.get('style', '')
         m=stroke_width_re.search(style)
         if m:
@@ -223,7 +223,7 @@ class Shape(object):
             attrib['fill']=self.color
         else:
             attrib['fill']='none'
-        if self.opacity != 1.0:
+        if self.opacity != 1.0  or  "opacity" in attrib:
             attrib['opacity'] = str(self.opacity)
         attrib['stroke']=self.color
         attrib['style']="stroke-width:%d" % self.linewidth
@@ -1612,6 +1612,7 @@ class ShapeDrawer:
                     i = self.find_object(sel)
                     if i is not None:
                         self.objects.set_value(i, 1, sel.name or self.SHAPENAME)
+                self.feedback_shape = None
             return True
         elif event.button == 1:
             self.selection[0][0], self.selection[0][1] = point
@@ -1922,7 +1923,7 @@ class ShapeEditor(object):
         self.widget.connect('key-press-event', self.key_press_event)
 
     def key_press_event(self, widget, event):
-        cl=self.key_mapping.get(event.keyval, None)
+        cl = self.key_mapping.get(event.keyval, None)
         if isinstance(cl, types.TypeType) and issubclass(cl, Shape):
             # Select the appropriate shape
             self.shape_icon.set_shape(cl)
@@ -1930,6 +1931,11 @@ class ShapeEditor(object):
             return True
         elif callable(cl):
             cl(widget, event)
+            return True
+        elif event.keyval == gtk.keysyms.Delete:
+            s = self.get_selected_node(self.treeview)
+            if s is not None:
+                self.drawer.remove_object(s)
             return True
         return False
 
