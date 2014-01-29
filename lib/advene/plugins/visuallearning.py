@@ -159,6 +159,7 @@ class VisualLearningPanel(AdhocView):
             self.export_button.set_sensitive(True)
 
     def do_export(self, b):
+        pkg = self.controller.package
         d=unicode(self.dirname_entry.get_text())
         if not d:
             dialog.message_dialog(_("No destination directory provided"),
@@ -166,23 +167,19 @@ class VisualLearningPanel(AdhocView):
             return False
 
         vie=self.vie_entry.get_text() or None
-        jquery=self.jquery_entry.get_text() or None
-        popcorn=self.popcorn_entry.get_text() or None
+        template = self.template_entry.get_text() or None
         exprender = self.exprender_toggle.get_active()
         browse = self.browse_toggle.get_active()
 
         config_changed = False
-        if (config.data.preferences.get('visuallearning-export-dir') != d):
-            config.data.preferences['visuallearning-export-dir'] = d
-            config_changed = True
+        if (pkg.getMetaData(NS, 'export-dir') != d):
+            pkg.setMetaData(NS, 'export-dir', d)
+            pkg._modified = True
         if (config.data.preferences.get('visuallearning-vie-path') != vie):
             config.data.preferences['visuallearning-vie-path'] = vie
             config_changed = True
-        if (config.data.preferences.get('visuallearning-jquery-url') != jquery):
-            config.data.preferences['visuallearning-jquery-url'] = jquery
-            config_changed = True
-        if (config.data.preferences.get('visuallearning-popcorn-url') != popcorn):
-            config.data.preferences['visuallearning-popcorn-url'] = popcorn
+        if (config.data.preferences.get('visuallearning-template-path') != template):
+            config.data.preferences['visuallearning-template-path'] = template
             config_changed = True
         if config_changed:
             config.data.save_preferences()
@@ -193,12 +190,11 @@ class VisualLearningPanel(AdhocView):
         self.should_continue = True
 
         try:
-            export(self.controller.package,
+            export(pkg,
                    self.controller,
                    destination=d,
                    vie=vie,
-                   jquery=jquery,
-                   popcorn=popcorn,
+                   template=template,
                    exprender=exprender,
                    browse=browse,
                    progress_callback=self.report_progress,
@@ -251,7 +247,7 @@ class VisualLearningPanel(AdhocView):
         hb=gtk.HBox()
         hb.pack_start(gtk.Label(_("Output dir")), expand=False)
         entry=gtk.Entry()
-        entry.set_text(config.data.preferences.get('visuallearning-export-dir') or "")
+        entry.set_text(pkg.getMetaData(NS, 'export-dir') or "")
         hb.add(entry)
         self.dirname_entry = entry
         b=gtk.Button(stock=gtk.STOCK_OPEN)
@@ -289,8 +285,6 @@ class VisualLearningPanel(AdhocView):
 
 
         ## progress bar
-        hb.pack_start(b, expand=False)
-        v.pack_start(hb, expand=False)
         self.progress_bar = gtk.ProgressBar()
         v.pack_start(self.progress_bar, expand=False)
 
@@ -324,90 +318,85 @@ class VisualLearningPanel(AdhocView):
 
 
         hb=gtk.HBox()
-        hb.pack_start(gtk.Label(_("JQuery URL")), expand=False)
+        hb.pack_start(gtk.Label(_("Template path")), expand=False)
         entry=gtk.Entry()
         entry.set_tooltip_text(
-            _("URL of the JQuery library (leave blank to generate local copy)"))
-        entry.set_text(config.data.preferences.get('visuallearning-jquery-url') or "")
+            _("Path of the template directory (leave blank to use default template)"))
+        entry.set_text(config.data.preferences.get('visuallearning-template-path') or "")
         hb.add(entry)
-        self.jquery_entry = entry
-        v.pack_start(hb, expand=False)
+        self.template_entry = entry
 
-        hb=gtk.HBox()
-        hb.pack_start(gtk.Label(_("Popcorn URL")), expand=False)
-        entry=gtk.Entry()
-        entry.set_tooltip_text(
-            _("URL of the Popcorn library (leave blank to generate local copy)"))
-        entry.set_text(config.data.preferences.get('visuallearning-popcorn-url') or "")
-        hb.add(entry)
-        self.popcorn_entry = entry
+        b=gtk.Button(stock=gtk.STOCK_OPEN)
+        def select_template(*p):
+            d=dialog.get_dirname(_("Specify the template directory"),
+                                 default_dir=self.template_entry.get_text(),
+            )
+            if d is not None:
+                self.controller.log("Setting VL template dir to %s" % d)
+                self.template_entry.set_text(d)
+            return True
+        b.connect('clicked', select_template)
+        hb.pack_start(b, expand=False)
         v.pack_start(hb, expand=False)
 
 
         return v
 
 
-def export(package, controller, destination='/tmp/n', vie=None, jquery=None, popcorn=None, exprender=True, browse=True, progress_callback=None):
+def export(package, controller, destination='/tmp/n', vie=None, template=None, exprender=True, browse=True, progress_callback=None):
                 
     if progress_callback is None:
         progress_callback = lambda a,b: None
            
     progress_callback(0, "checking destination dir")
+    if os.path.exists(destination) and not os.path.isdir(destination):
+        controller.log(_("%s exists but is not a directory. "
+                         "Cancelling visuallearning export") % destination)
+        return
     if not os.path.exists(destination):
+        # we perform recursive_mkdir *even* if template is not None,
+        # (and hence we have to delete the corresponding dir afterwards)
+        # because we may have to create *parent* directories
         helper.recursive_mkdir(destination)
         if not os.path.isdir(destination):
             controller.log(_("could not create directory %s") % destination)
             return
-    elif os.path.exists(destination) and not os.path.isdir(destination):
-        controller.log(_("%s exists but is not a directory. Cancelling visuallearning export") % destination)
-        return
+    if template:
+        shutil.rmtree(destination)
 
 
-    progress_callback(.1, "retrieving HTML template")
-    plugin_dir = os.path.dirname(__file__)
-    html_content = CONTENTS["page.html"]
+    html_filename = os.path.join(destination, "index.html")
 
-    if jquery:
-        html_content = html_content.replace('src="jquery.js"',
-                                            'src="%s"' % jquery)
+    if template:
+        progress_callback(.1, "copying template")
+        shutil.rmtree(destination, True)
+        shutil.copytree(template, destination)
+        f = open(html_filename)
+        try:
+            html_content = f.read().decode("utf-8")
+        finally:
+            f.close()
     else:
-        progress_callback(.2, "copying jquery.js")
+        progress_callback(.1, "copying default template")
         f = open(os.path.join(destination, "jquery.js"), "w")
         try:
             f.write(CONTENTS["jquery.js"]);
         finally:
             f.close()
-
-    if popcorn:
-        html_content = html_content.replace('src="popcorn-complete.js"',
-                                            'src="%s"' % popcorn)
-    else:
-        progress_callback(.3, "copying popcorn-complete.js")
         f = open(os.path.join(destination, "popcorn-complete.js"), "w")
         try:
             f.write(CONTENTS["popcorn-complete.js"]);
         finally:
             f.close()
+        f = open(os.path.join(destination, "visual-learning.js"), "w")
+        try:
+            f.write(CONTENTS["visual-learning.js"]);
+        finally:
+            f.close()
+        html_content = CONTENTS["index.html"]
+    
 
-
-    progress_callback(.4, "generating index.html")
-    video_src = controller.get_default_media(package)
-    video_name = os.path.split(video_src)[-1]
-    html_content = html_content.replace('src="video.webm"',
-                                        'src="%s"' % video_name
-                                        )
-    html_content = html_content.replace("the-title-of-the-page",
-                                        package.getTitle())
-    html_content = html_content.replace("the-author-of-the-page",
-                                        package.getAuthor())
-    html_filename = os.path.join(destination, "index.html")
-    f = open(html_filename, "w")
-    try:
-        f.write(html_content)
-    finally:
-        f.close()
-
-    progress_callback(.5, "generating JSON structure")
+    progress_callback(.2, "generating JSON structure")
     annotations = {}
     media_duration = package.getMetaData(
         "http://experience.univ-lyon1.fr/advene/ns/advenetool", "duration")
@@ -469,21 +458,27 @@ def export(package, controller, destination='/tmp/n', vie=None, jquery=None, pop
     annotations["svgs"] = svgs
     annotations_json = json.dumps(annotations, indent=4)
 
-    progress_callback(.6, "generating visual-learning.js")
-    js_content = CONTENTS["visual-learning.js"]
-    js_content = js_content.replace("= TEST_DATA;",
-                                    "= %s;" % annotations_json)
-    js_filename = os.path.join(destination, "visual-learning.js")
-    f = open(js_filename, "w")
-    try:
-        f.write(js_content)
-    finally: 
-        f.close()
-    progress_callback(.7, "visual-learning.js generated")
 
+    progress_callback(.5, "generating index.html")
+    video_src = controller.get_default_media(package)
+    video_name = os.path.split(video_src)[-1]
+    html_content = html_content.replace('src="the-video-file"',
+                                        'src="%s"' % video_name
+                                        )
+    html_content = html_content.replace("the-title-of-the-page",
+                                        package.getTitle())
+    html_content = html_content.replace("the-author-of-the-page",
+                                        package.getAuthor())
+    html_content = html_content.replace("the-visual-learning-data",
+                                        annotations_json)
+    f = open(html_filename, "w")
+    try:
+        f.write(html_content)
+    finally:
+        f.close()
 
     video_dest = os.path.join(destination, video_name)
-    progress_callback(.8, "copying video")
+    progress_callback(.6, "copying video")
     shutil.copy(video_src, video_dest)
 
     if browse:

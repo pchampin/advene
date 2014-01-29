@@ -1,11 +1,12 @@
 # -*- coding=utf-8 -*-
 
 CONTENTS = {
-  "page.html": r"""<!DOCTYPE html>
+  "index.html": r"""<!DOCTYPE html>
 <html>
  <head>
   <title>the-title-of-the-page</title>
   <meta name="author" content="the-author-of-the-page" />
+  <meta charset="utf-8"/>
   <style type="text/css">
     /* @import url("style.css"); */
     body {
@@ -79,11 +80,14 @@ CONTENTS = {
   <script type="text/javascript" src="jquery.js"></script>
   <script type="text/javascript" src="popcorn-complete.js"></script>
   <script type="text/javascript" src="visual-learning.js"></script>
+  <script type="text/javascript">
+    VISUAL_LEARNING_DATA = the-visual-learning-data;
+  </script>
  </head>
 
  <body>
    <div id="screen">
-     <video id="video" preload="auto" src="video.webm"></video>
+     <video id="video" preload="auto" src="the-video-file"></video>
      <div id="subtitles"      class="overlay" ></div>
      <div id="svg"            class="overlay"></div>
      <div id="pausecontainer" class="overlay"><div id="pausepanel"></div></div>
@@ -206,8 +210,8 @@ CONTENTS = {
             $("#rewind")[0].disabled = true;
             $("#forward")[0].disabled = true;
         }
-        if (annotations.media_duration) {
-            timebar.max = annotations.media_duration;
+        if (VISUAL_LEARNING_DATA.media_duration) {
+            timebar.max = VISUAL_LEARNING_DATA.media_duration;
         } else {
             timebar.max = video.media.duration;
             /* some browsers (e.g. FF) fail to load it over HTTP,
@@ -250,8 +254,8 @@ CONTENTS = {
 
         /* passing annotations to popcorn */
         var i, a;
-        for(i=0; i< annotations.skips.length; i+=1) {
-            a = annotations.skips[i];
+        for(i=0; i< VISUAL_LEARNING_DATA.skips.length; i+=1) {
+            a = VISUAL_LEARNING_DATA.skips[i];
             video.code({
                 start: a.start,
                 end: a.end-skip_security,
@@ -265,18 +269,18 @@ CONTENTS = {
             });
             i += 1;
         }
-        for(i=0; i< annotations.subtitles.length; i+=1) {
-            a = annotations.subtitles[i];
+        for(i=0; i< VISUAL_LEARNING_DATA.subtitles.length; i+=1) {
+            a = VISUAL_LEARNING_DATA.subtitles[i];
             a.target = "subtitles";
             video.subtitle(a);
         }
-        for(i=0; i< annotations.svgs.length; i+=1) {
-            a = annotations.svgs[i];
+        for(i=0; i< VISUAL_LEARNING_DATA.svgs.length; i+=1) {
+            a = VISUAL_LEARNING_DATA.svgs[i];
             a.target = "svg";
             video.subtitle(a);
         }
-        for(i=0; i< annotations.pauses.length; i+=1) {
-            a = annotations.pauses[i];
+        for(i=0; i< VISUAL_LEARNING_DATA.pauses.length; i+=1) {
+            a = VISUAL_LEARNING_DATA.pauses[i];
             video.code({
                 start: a.time-1,
                 end: a.time,
@@ -287,38 +291,6 @@ CONTENTS = {
 
         console.log("visual-learning annotations loaded");
     }
-
-    var TEST_DATA = {
-        "media_duration": 1010.81,
-        "skips": [
-            {
-                start: 0,
-                end: 19
-            }
-        ],
-        "subtitles": [
-            {
-                start: 20,
-                end: 22,
-                text: "This is a subtitle",
-            },
-        ],
-        "svgs": [
-            {
-                start: 21,
-                end: 24,
-                text: '<svg viewBox="0 0 640 355"><text fill="red" name="Texte" stroke="red" style="stroke-width:1; font-family: sans-serif; font-size: 20" x="180" y="62">This is SVG</text><ellipse cx="357" cy="73" fill="none" name="Forme générique" rx="43" ry="55" stroke="red" style="stroke-width:2" /><line x1="0", y1="50%" x2="100%" y2="50%" stroke="yellow"/></svg>',
-            },
-        ],
-        "pauses": [
-            {
-                time: 23,
-                text: "This is a pause",
-            },
-        ],
-    };
-
-    var annotations = TEST_DATA;
 
     console.log("visual-learning script loaded");
 });
